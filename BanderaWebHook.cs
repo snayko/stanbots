@@ -24,7 +24,7 @@ namespace stanbots
 
         [FunctionName("BanderaWebHook")]
         public async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest request)
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest request)
         {
             try
             {
