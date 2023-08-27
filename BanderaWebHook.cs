@@ -13,12 +13,10 @@ namespace stanbots
 {
     public class BanderaWebHook
     {
-        private readonly ILogger _logger;
         private readonly TelegramUpdateService _updateService;
 
-        public BanderaWebHook(ILogger logger, TelegramUpdateService updateService)
+        public BanderaWebHook(TelegramUpdateService updateService)
         {
-            _logger = logger;
             _updateService = updateService;
         }
 
@@ -32,14 +30,12 @@ namespace stanbots
                 var update = JsonConvert.DeserializeObject<Update>(body);
                 if (update is null)
                 {
-                    _logger.LogWarning("Unable to deserialize Update object.");
                 }
 
                 await _updateService.EchoAsync(update);
             }
             catch (Exception e)
             {
-                _logger.LogError("Exception: " + e.Message);
             }
 
             return new OkResult();
