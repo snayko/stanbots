@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Telegram.Bot.Types;
 using stanbots.Services;
+using System.Threading;
 
 namespace stanbots
 {
@@ -22,17 +23,16 @@ namespace stanbots
 
         [FunctionName("BanderaWebHook")]
         public async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest request)
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest request, CancellationToken cancellationToken)
         {
             try
             {
                 var body = await request.ReadAsStringAsync();
                 var update = JsonConvert.DeserializeObject<Update>(body);
-                if (update is null)
+                if (update != null)
                 {
+                    await _updateService.ProcessUpdateMessage(update, cancellationToken);
                 }
-
-                await _updateService.EchoAsync(update);
             }
             catch (Exception e)
             {
