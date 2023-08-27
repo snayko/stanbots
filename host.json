@@ -8,7 +8,8 @@
       }
     },
     "logLevel": {
-      "stanbots.Services.TelegramUpdateService": "Warning"
+      "stanbots.Services.TelegramUpdateService": "Information",
+      "stanbots.BanderaWebHook": "Information"
     }
   }
 }

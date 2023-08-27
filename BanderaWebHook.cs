@@ -15,10 +15,12 @@ namespace stanbots
     public class BanderaWebHook
     {
         private readonly TelegramUpdateService _updateService;
+        private readonly ILogger<BanderaWebHook> _logger;
 
-        public BanderaWebHook(TelegramUpdateService updateService)
+        public BanderaWebHook(TelegramUpdateService updateService, ILogger<BanderaWebHook> logger)
         {
             _updateService = updateService;
+            _logger = logger;
         }
 
         [FunctionName("BanderaWebHook")]
@@ -28,6 +30,9 @@ namespace stanbots
             try
             {
                 var body = await request.ReadAsStringAsync();
+
+                _logger.LogInformation("BanderaWebHook received message {0}:", body);
+                
                 var update = JsonConvert.DeserializeObject<Update>(body);
                 if (update != null)
                 {
@@ -36,6 +41,7 @@ namespace stanbots
             }
             catch (Exception e)
             {
+                _logger.LogError("Exception: " + e.Message);
             }
 
             return new OkResult();

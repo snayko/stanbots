@@ -14,11 +14,8 @@ namespace stanbots
     {
         public override void Configure(IFunctionsHostBuilder builder)
         {
-            // Register named HttpClient to get benefits of IHttpClientFactory
-            // and consume it with ITelegramBotClient typed client.
-            // More read:
-            //  https://docs.microsoft.com/en-us/aspnet/core/fundamentals/http-requests?view=aspnetcore-5.0#typed-clients
-            //  https://docs.microsoft.com/en-us/dotnet/architecture/microservices/implement-resilient-applications/use-httpclientfactory-to-implement-resilient-http-requests
+            // Register ILogger<T> and ILoggerFactory
+            builder.Services.AddLogging();
 
             var token = Environment
                 .GetEnvironmentVariable("TelegramBotToken", EnvironmentVariableTarget.Process)
