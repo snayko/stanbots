@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
@@ -7,29 +6,43 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Telegram.Bot.Types;
+using stanbots.Services;
 
 namespace stanbots
 {
-    public static class BanderaWebHook
+    public class BanderaWebHook
     {
-        [FunctionName("BanderaWebHook")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            ILogger log)
+        private readonly ILogger _logger;
+        private readonly TelegramUpdateService _updateService;
+
+        public BanderaWebHook(ILogger logger, TelegramUpdateService updateService)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
+            _logger = logger;
+            _updateService = updateService;
+        }
 
-            string name = req.Query["name"];
+        [FunctionName("BanderaWebHook")]
+        public async Task<IActionResult> Run(
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest request)
+        {
+            try
+            {
+                var body = await request.ReadAsStringAsync();
+                var update = JsonConvert.DeserializeObject<Update>(body);
+                if (update is null)
+                {
+                    _logger.LogWarning("Unable to deserialize Update object.");
+                }
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            name = name ?? data?.name;
+                await _updateService.EchoAsync(update);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Exception: " + e.Message);
+            }
 
-            string responseMessage = string.IsNullOrEmpty(name)
-                ? "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                : $"Hello, {name}. This HTTP triggered function executed successfully.";
-
-            return new OkObjectResult(responseMessage);
+            return new OkResult();
         }
     }
 }
