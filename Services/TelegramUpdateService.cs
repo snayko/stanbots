@@ -1,10 +1,16 @@
-﻿using System.Threading;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using stanbots.Common;
+using stanbots.Models;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace stanbots.Services
 {
@@ -13,15 +19,16 @@ namespace stanbots.Services
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<TelegramUpdateService> _logger;
 
-        public const string VerifyChatMemberMessageQuestion = "Ви можете закінчити вираз 'Путін....!' (слово з 5-и букв)?";
-        public const string VerifyChatMemberMessageResponse = "хуйло";
-        public const string RefuseJoinRequestsToBotsMessageResponse = "Ботам тут не раді!";
-
         public const string JoinRequestsWelcomeMessage = "Ласкаво просимо!";
-        public const string JoinRequestsRefuseMessage = "Вибачте, це приватна група, і ви не пройшли перевірку!";
 
+        public const string JoinRequestsRefuseMessageWrongAnswer = "Відхилено запит на вступ до групи для: {0}, мова: {1}, бот: {2}, username: {3}, питання: {4}, відповідь: {5} - москалику спалився!";
+        public const string JoinRequestsRefuseMessageTimeout = "Відхилено запит на вступ до групи для: {0}, мова: {1}, бот: {2} питання: {3} за таймаутом!";
+
+        public const string JoinRequestsRefuseToBotMessageTimeout =
+            "Відхилено запит на вступ до групи для бота: {0}, username: {1}, мова: {2}!";
+        
         //Add real db storage cause it's not reliable storage
-        static Dictionary<long, ChatJoinRequest> _pendingJoinRequests = new Dictionary<long, ChatJoinRequest>();
+        static ConcurrentDictionary<long, ChatJoinRequestContext> _pendingJoinRequests = new ConcurrentDictionary<long, ChatJoinRequestContext>();
 
         public TelegramUpdateService(ITelegramBotClient botClient, ILogger<TelegramUpdateService> logger)
         {
@@ -44,16 +51,56 @@ namespace stanbots.Services
         async Task BotOnJoinReceived(ChatJoinRequest request, CancellationToken cancellationToken)
         {
             var user = request.From;
+            var chatId = request.Chat.Id;
+            var userId = user.Id;
 
             if (!user.IsBot)
             {
-                await _botClient.SendTextMessageAsync(request.UserChatId, VerifyChatMemberMessageQuestion);
-                _pendingJoinRequests[user.Id] = request;
+                var questions = QuestionsSupplier.Instance.GetQuestions();
+                
+                // Randomly select a question
+                var random = new Random();
+                var selectedQuestion = questions[random.Next(questions.Count)];
+
+                // Extract the question and answers
+                var questionText = selectedQuestion.Question;
+                // Shuffle the answer options for randomness
+                var answerOptions = selectedQuestion.Answers.OrderBy(x => random.Next()).ToList();
+                
+                // Send a choice question with predefined answers as buttons to the group chat
+                // Create a ReplyKeyboardMarkup with the shuffled answer options
+                var keyboard = new ReplyKeyboardMarkup(answerOptions.Select(option => new KeyboardButton(option)));
+
+                // Send the question to the group chat
+                await _botClient.SendTextMessageAsync(chatId, questionText, replyMarkup: keyboard);
+
+                // Start a timer for 2 minutes to wait for the user's response
+                var timer = new System.Timers.Timer(120000);
+
+                timer.Elapsed += async (sender, e) =>
+                {
+                    if (_pendingJoinRequests.TryGetValue(userId, out var stillPendingRequest))
+                    {
+                        var userInReq = stillPendingRequest.JoinRequest.From;
+
+                        await _botClient.DeclineChatJoinRequest(chatId, userId, cancellationToken);
+                        await _botClient.SendTextMessageAsync(chatId,
+                            string.Format(JoinRequestsRefuseMessageTimeout, userInReq.GetFullName(),
+                                userInReq.LanguageCode, userInReq.IsBot, stillPendingRequest.Question));
+                    }
+                };
+                
+                timer.Start();
+
+                _pendingJoinRequests[user.Id] = new ChatJoinRequestContext()
+                    { JoinRequest = request, Question = selectedQuestion };
             }
             else
             {
-                await _botClient.SendTextMessageAsync(request.UserChatId, RefuseJoinRequestsToBotsMessageResponse);
-                await _botClient.DeclineChatJoinRequest(request.UserChatId, user.Id, cancellationToken);
+                await _botClient.DeclineChatJoinRequest(chatId, userId, cancellationToken);
+                await _botClient.SendTextMessageAsync(chatId,
+                    string.Format(JoinRequestsRefuseToBotMessageTimeout, user.GetFullName(),
+                        user.Username, user.LanguageCode));
             }
         }
 
@@ -64,20 +111,26 @@ namespace stanbots.Services
             if (_pendingJoinRequests.TryGetValue(userId, out var pendingRequest))
             {
                 string response = message.Text;
+                var req = pendingRequest.JoinRequest;
+                var quest = pendingRequest.Question;
+                    
                 if (!string.IsNullOrWhiteSpace(response)
-                    && response.Trim().Contains(VerifyChatMemberMessageResponse, System.StringComparison.OrdinalIgnoreCase))
+                    && response.Trim().Contains(quest.CorrectAnswer, System.StringComparison.OrdinalIgnoreCase))
                 {
-                    await _botClient.SendTextMessageAsync(pendingRequest.UserChatId, JoinRequestsWelcomeMessage);
-                    await _botClient.ApproveChatJoinRequest(pendingRequest.Chat.Id, userId, cancellationToken);
+                    await _botClient.ApproveChatJoinRequest(req.Chat.Id, userId, cancellationToken);
+                    await _botClient.SendTextMessageAsync(req.Chat.Id, JoinRequestsWelcomeMessage);
+                    
                 }
                 else
                 {
-                    await _botClient.SendTextMessageAsync(pendingRequest.UserChatId, JoinRequestsRefuseMessage);
-                    await _botClient.DeclineChatJoinRequest(pendingRequest.Chat.Id, userId, cancellationToken);
+                    await _botClient.DeclineChatJoinRequest(req.Chat.Id, userId, cancellationToken);
+                    await _botClient.SendTextMessageAsync(req.Chat.Id,
+                        string.Format(JoinRequestsRefuseMessageWrongAnswer, req.From.GetFullName(),
+                            req.From.LanguageCode, req.From.IsBot, req.From.Username, quest.Question, response));
                 }
 
                 // Remove the pending request
-                _pendingJoinRequests.Remove(userId);
+                _pendingJoinRequests.Remove(userId, out var removedItem);
             }
         }
 
