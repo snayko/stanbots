@@ -13,6 +13,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Remove="Services\" />
+    <None Update="Data\questions.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <None Update="host.json">
