@@ -18,7 +18,7 @@ public sealed class QuestionsSupplier
 
     private QuestionsSupplier()
     {
-        string connectionString = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
+        /*string connectionString = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
 
         // Create a BlobServiceClient using the connection string
         var blobServiceClient = new BlobServiceClient(connectionString);
@@ -31,14 +31,45 @@ public sealed class QuestionsSupplier
 
         // Read the blob content
         using var reader = new StreamReader(blobClient.OpenRead());
-        string blobContent = reader.ReadToEnd();
+        string blobContent = reader.ReadToEnd();*/
+
 
         _questions =
-            JsonConvert.DeserializeObject<List<JoinRequestVerifySingleAnswerQuestion>>(blobContent);
+            JsonConvert.DeserializeObject<List<JoinRequestVerifySingleAnswerQuestion>>(QuestionsTextJson);
     }
 
     public List<JoinRequestVerifySingleAnswerQuestion> GetQuestions()
     {
         return _questions;
     }
+
+    public static string QuestionsTextJson = @"
+    [
+        {
+            ""question"": ""Оберіть коректне завершення фрази(прислівки): 'Путін....!'?"",
+            ""answers"": [""Наш президент"", ""Гарний парубок"", ""Хуйло"", ""Хуйло ла-ла-ла-ла""],
+            ""correctanswer"": ""Хуйло""
+        },
+        {
+            ""question"": ""Чий Крим?"",
+            ""answers"": [""Российский"", ""Український"", ""Не все так однозначно"", ""Турецкий""],
+            ""correctanswer"": ""Український""
+        },
+        {
+            ""question"": ""Оберіть коректне завершення фрази: 'Российский военный корабль...'!"",
+            ""answers"": [""Москва"", ""Купить"", ""Иди на хуй"", ""Самый большой""],
+            ""correctanswer"": ""Иди на хуй""
+        },
+        {
+            ""question"": ""Хто цяпер з'яўляецца законным прэзідэнтам Беларусі?"",
+            ""answers"": [""Путін"", ""Лукашенко"", ""Тихановская"", ""Мяшок бульбяны""],
+            ""correctanswer"": ""Тихановская""
+        },
+        {
+            ""question"": ""The largest city in the south of Ukraine?"",
+            ""answers"": [""Odessa"", ""Dnipro"", ""Kherson"", ""Odesa""],
+            ""correctanswer"": ""Odesa""
+        }
+    ]
+    ";
 }
