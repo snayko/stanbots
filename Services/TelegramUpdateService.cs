@@ -51,7 +51,7 @@ namespace stanbots.Services
         async Task BotOnJoinReceived(ChatJoinRequest request, CancellationToken cancellationToken)
         {
             var user = request.From;
-            var chatId = request.Chat.Id;
+            var chatId = request.UserChatId;
             var userId = user.Id;
 
             if (!user.IsBot)
@@ -113,18 +113,19 @@ namespace stanbots.Services
                 string response = message.Text;
                 var req = pendingRequest.JoinRequest;
                 var quest = pendingRequest.Question;
+                var chatId = req.UserChatId;
                     
                 if (!string.IsNullOrWhiteSpace(response)
                     && response.Trim().Contains(quest.CorrectAnswer, System.StringComparison.OrdinalIgnoreCase))
                 {
-                    await _botClient.ApproveChatJoinRequest(req.Chat.Id, userId, cancellationToken);
-                    await _botClient.SendTextMessageAsync(req.Chat.Id, JoinRequestsWelcomeMessage);
+                    await _botClient.ApproveChatJoinRequest(chatId, userId, cancellationToken);
+                    await _botClient.SendTextMessageAsync(chatId, JoinRequestsWelcomeMessage);
                     
                 }
                 else
                 {
-                    await _botClient.DeclineChatJoinRequest(req.Chat.Id, userId, cancellationToken);
-                    await _botClient.SendTextMessageAsync(req.Chat.Id,
+                    await _botClient.DeclineChatJoinRequest(chatId, userId, cancellationToken);
+                    await _botClient.SendTextMessageAsync(chatId,
                         string.Format(JoinRequestsRefuseMessageWrongAnswer, req.From.GetFullName(),
                             req.From.LanguageCode, req.From.IsBot, req.From.Username, quest.Question, response));
                 }
