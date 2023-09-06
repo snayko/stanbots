@@ -70,12 +70,19 @@ namespace stanbots.Services
                 // Shuffle the answer options for randomness
                 var answerOptions = selectedQuestion.Answers.OrderBy(x => random.Next()).ToList();
                 
-                // Send a choice question with predefined answers as buttons to the group chat
-                // Create a ReplyKeyboardMarkup with the shuffled answer options
-                var keyboard = new ReplyKeyboardMarkup(answerOptions.Select(option => new KeyboardButton(option)));
+                // Group answerOptions into arrays of 2 elements
+                var groupedOptions = answerOptions.Select((x, i) => new { Index = i, Value = x })
+                                                .GroupBy(x => x.Index / 2)
+                                                .Select(g => g.Select(x => x.Value).ToArray())
+                                                .ToArray();
+
+                // Create the ReplyKeyboardMarkup
+                var replyKeyboardMarkup = new ReplyKeyboardMarkup(
+                    groupedOptions.Select(group => group.Select(option => new KeyboardButton(option)).ToArray())
+                );
 
                 // Send the question to the group chat
-                await _botClient.SendTextMessageAsync(userChatId, questionText, replyMarkup: keyboard, cancellationToken: cancellationToken);
+                await _botClient.SendTextMessageAsync(userChatId, questionText, replyMarkup: replyKeyboardMarkup, cancellationToken: cancellationToken);
 
                 _pendingJoinRequests[userId] = new ChatJoinRequestContext()
                     { JoinRequest = request, Question = selectedQuestion };
