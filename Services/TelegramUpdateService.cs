@@ -51,8 +51,11 @@ namespace stanbots.Services
         async Task BotOnJoinReceived(ChatJoinRequest request, CancellationToken cancellationToken)
         {
             var user = request.From;
-            var chatId = request.UserChatId;
+            var chatId = request.Chat.Id;
+            var userChatId = request.UserChatId;
             var userId = user.Id;
+
+            _logger.LogInformation($"Bot On Join Request Received to chat:{request.Chat.Id}, From:{request.From.GetFullName()}, userChatId: {userChatId}");
 
             if (!user.IsBot)
             {
@@ -74,16 +77,24 @@ namespace stanbots.Services
                 // Send the question to the group chat
                 await _botClient.SendTextMessageAsync(chatId, questionText, replyMarkup: keyboard);
 
+                _pendingJoinRequests[userId] = new ChatJoinRequestContext()
+                    { JoinRequest = request, Question = selectedQuestion };
+
                 // Start a timer for 2 minutes to wait for the user's response
-                var timer = new System.Timers.Timer(120000);
+                var timer = new System.Timers.Timer(120000) { AutoReset = false};
 
                 timer.Elapsed += async (sender, e) =>
                 {
+                    _logger.LogInformation("Timer elapsed for user {0}", userId);
+
                     if (_pendingJoinRequests.TryGetValue(userId, out var stillPendingRequest))
                     {
                         var userInReq = stillPendingRequest.JoinRequest.From;
 
+                        _logger.LogInformation($"User:{userInReq.GetFullName()} is still in pending state");
+
                         await _botClient.DeclineChatJoinRequest(chatId, userId, cancellationToken);
+
                         await _botClient.SendTextMessageAsync(chatId,
                             string.Format(JoinRequestsRefuseMessageTimeout, userInReq.GetFullName(),
                                 userInReq.LanguageCode, userInReq.IsBot, stillPendingRequest.Question));
@@ -91,9 +102,6 @@ namespace stanbots.Services
                 };
                 
                 timer.Start();
-
-                _pendingJoinRequests[user.Id] = new ChatJoinRequestContext()
-                    { JoinRequest = request, Question = selectedQuestion };
             }
             else
             {
@@ -108,19 +116,20 @@ namespace stanbots.Services
         {
             var userId = message.From.Id;
             
+            _logger.LogInformation($"Bot On Reply Handling - Message:{message.Text} received from user {userId}");
+
             if (_pendingJoinRequests.TryGetValue(userId, out var pendingRequest))
             {
                 string response = message.Text;
                 var req = pendingRequest.JoinRequest;
                 var quest = pendingRequest.Question;
-                var chatId = req.UserChatId;
+                var chatId = req.Chat.Id;
                     
                 if (!string.IsNullOrWhiteSpace(response)
                     && response.Trim().Contains(quest.CorrectAnswer, System.StringComparison.OrdinalIgnoreCase))
                 {
                     await _botClient.ApproveChatJoinRequest(chatId, userId, cancellationToken);
                     await _botClient.SendTextMessageAsync(chatId, JoinRequestsWelcomeMessage);
-                    
                 }
                 else
                 {
