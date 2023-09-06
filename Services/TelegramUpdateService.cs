@@ -75,7 +75,7 @@ namespace stanbots.Services
                 var keyboard = new ReplyKeyboardMarkup(answerOptions.Select(option => new KeyboardButton(option)));
 
                 // Send the question to the group chat
-                await _botClient.SendTextMessageAsync(chatId, questionText, replyMarkup: keyboard);
+                await _botClient.SendTextMessageAsync(userChatId, questionText, replyMarkup: keyboard, cancellationToken: cancellationToken);
 
                 _pendingJoinRequests[userId] = new ChatJoinRequestContext()
                     { JoinRequest = request, Question = selectedQuestion };
@@ -93,9 +93,9 @@ namespace stanbots.Services
 
                         _logger.LogInformation($"User:{userInReq.GetFullName()} is still in pending state");
 
-                        await _botClient.DeclineChatJoinRequest(chatId, userId, cancellationToken);
+                        await _botClient.DeclineChatJoinRequest(userChatId, userId, cancellationToken);
 
-                        await _botClient.SendTextMessageAsync(chatId,
+                        await _botClient.SendTextMessageAsync(userChatId,
                             string.Format(JoinRequestsRefuseMessageTimeout, userInReq.GetFullName(),
                                 userInReq.LanguageCode, userInReq.IsBot, stillPendingRequest.Question));
                     }
@@ -105,8 +105,8 @@ namespace stanbots.Services
             }
             else
             {
-                await _botClient.DeclineChatJoinRequest(chatId, userId, cancellationToken);
-                await _botClient.SendTextMessageAsync(chatId,
+                await _botClient.DeclineChatJoinRequest(userChatId, userId, cancellationToken);
+                await _botClient.SendTextMessageAsync(userChatId,
                     string.Format(JoinRequestsRefuseToBotMessageTimeout, user.GetFullName(),
                         user.Username, user.LanguageCode));
             }
@@ -123,7 +123,7 @@ namespace stanbots.Services
                 string response = message.Text;
                 var req = pendingRequest.JoinRequest;
                 var quest = pendingRequest.Question;
-                var chatId = req.Chat.Id;
+                var chatId = req.UserChatId;
                     
                 if (!string.IsNullOrWhiteSpace(response)
                     && response.Trim().Contains(quest.CorrectAnswer, System.StringComparison.OrdinalIgnoreCase))
