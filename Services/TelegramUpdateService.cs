@@ -71,18 +71,33 @@ namespace stanbots.Services
                 var answerOptions = selectedQuestion.Answers.OrderBy(x => random.Next()).ToList();
                 
                 // Group answerOptions into arrays of 2 elements
-                var groupedOptions = answerOptions.Select((x, i) => new { Index = i, Value = x })
-                                                .GroupBy(x => x.Index / 2)
-                                                .Select(g => g.Select(x => x.Value).ToArray())
-                                                .ToArray();
+                //var groupedOptions = answerOptions.Select((x, i) => new { Index = i, Value = x })
+                //                                .GroupBy(x => x.Index / 2)
+                //                                .Select(g => g.Select(x => x.Value).ToArray())
+                 //                               .ToArray();
 
                 // Create the ReplyKeyboardMarkup
-                var replyKeyboardMarkup = new ReplyKeyboardMarkup(
-                    groupedOptions.Select(group => group.Select(option => new KeyboardButton(option)).ToArray())
-                );
+                //var replyKeyboardMarkup = new ReplyKeyboardMarkup(
+                //    groupedOptions.Select(group => group.Select(option => new KeyboardButton(option)).ToArray())
+                //);
+
+                InlineKeyboardMarkup inlineKeyboard = new(
+                new[]
+                {
+                    // first row
+                    new []
+                    {
+                        InlineKeyboardButton.WithCallbackData(answerOptions[0], answerOptions[1])
+                    },
+                    // second row
+                    new []
+                    {
+                        InlineKeyboardButton.WithCallbackData(answerOptions[2], answerOptions[3])
+                    },
+                });
 
                 // Send the question to the group chat
-                await _botClient.SendTextMessageAsync(userChatId, questionText, replyMarkup: replyKeyboardMarkup, cancellationToken: cancellationToken);
+                await _botClient.SendTextMessageAsync(userChatId, questionText, replyMarkup: inlineKeyboard, cancellationToken: cancellationToken);
 
                 _pendingJoinRequests[userId] = new ChatJoinRequestContext()
                     { JoinRequest = request, Question = selectedQuestion };
