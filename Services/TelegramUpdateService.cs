@@ -6,6 +6,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.ApplicationInsights;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using stanbots.Common;
@@ -18,7 +19,8 @@ namespace stanbots.Services
     {
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<TelegramUpdateService> _logger;
-
+        private readonly TelemetryClient _telemetryClient;
+        
         public const string JoinRequestsWelcomeMessage = "Ласкаво просимо!";
 
         public const string JoinRequestsRefuseMessageWrongAnswer = "Відхилено запит на вступ до групи для: {0}, мова: {1}, бот: {2}, username: {3}, питання: {4}, відповідь: {5} - москалику спалився!";
@@ -30,10 +32,11 @@ namespace stanbots.Services
         //Add real db storage cause it's not reliable storage
         static ConcurrentDictionary<long, ChatJoinRequestContext> _pendingJoinRequests = new ConcurrentDictionary<long, ChatJoinRequestContext>();
 
-        public TelegramUpdateService(ITelegramBotClient botClient, ILogger<TelegramUpdateService> logger)
+        public TelegramUpdateService(ITelegramBotClient botClient, ILogger<TelegramUpdateService> logger, TelemetryClient telemetryClient)
         {
             _botClient = botClient;
             _logger = logger;
+            _telemetryClient = telemetryClient;
         }
 
         public async Task ProcessUpdateMessage(Update update, CancellationToken cancellationToken)
@@ -160,6 +163,14 @@ namespace stanbots.Services
         async Task UnknownUpdateHandlerAsync(Update update, CancellationToken cancellationToken)
         {
             _logger.LogWarning("Unrecognized message: {0}", JsonConvert.SerializeObject(update));
+
+            var properties = new Dictionary<string, string>
+            {
+                { "messageType", update.Type.ToString() },
+                { "message", JsonConvert.SerializeObject(update) }
+            };
+            _telemetryClient.TrackEvent(AzureEvents.UnknownMessageType, properties);
+            
             await Task.CompletedTask;
         }
     }

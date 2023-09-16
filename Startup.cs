@@ -1,8 +1,6 @@
 ﻿using System;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json.Linq;
 using stanbots.Services;
 using Telegram.Bot;
 
@@ -24,7 +22,9 @@ namespace stanbots
             builder.Services.AddHttpClient("tgclient")
                 .AddTypedClient<ITelegramBotClient>(httpClient
                     => new TelegramBotClient(token, httpClient));
-
+            
+            builder.Services.AddApplicationInsightsTelemetry();
+            
             // Dummy business-logic service
             builder.Services.AddScoped<TelegramUpdateService>();
         }
