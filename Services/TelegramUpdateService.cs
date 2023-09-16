@@ -70,34 +70,21 @@ namespace stanbots.Services
                 // Shuffle the answer options for randomness
                 var answerOptions = selectedQuestion.Answers.OrderBy(x => random.Next()).ToList();
                 
-                // Group answerOptions into arrays of 2 elements
-                //var groupedOptions = answerOptions.Select((x, i) => new { Index = i, Value = x })
-                //                                .GroupBy(x => x.Index / 2)
-                //                                .Select(g => g.Select(x => x.Value).ToArray())
-                 //                               .ToArray();
+                //Group answerOptions into arrays of 2 elements
+                var groupedOptions = answerOptions.Select((x, i) => new { Index = i, Value = x })
+                                               .GroupBy(x => x.Index / 2)
+                                               .Select(g => g.Select(x => new KeyboardButton(x.Value)).ToList())
+                                               .ToList();
 
-                // Create the ReplyKeyboardMarkup
-                //var replyKeyboardMarkup = new ReplyKeyboardMarkup(
-                //    groupedOptions.Select(group => group.Select(option => new KeyboardButton(option)).ToArray())
-                //);
-
-                InlineKeyboardMarkup inlineKeyboard = new(
-                new[]
-                {
-                    // first row
-                    new []
-                    {
-                        InlineKeyboardButton.WithCallbackData(answerOptions[0], answerOptions[1])
-                    },
-                    // second row
-                    new []
-                    {
-                        InlineKeyboardButton.WithCallbackData(answerOptions[2], answerOptions[3])
-                    },
-                });
+                
+                //Create the ReplyKeyboardMarkup
+                var replyKeyboardMarkup = new ReplyKeyboardMarkup(groupedOptions
+                ){ 
+                    ResizeKeyboard = true
+                };
 
                 // Send the question to the group chat
-                await _botClient.SendTextMessageAsync(userChatId, questionText, replyMarkup: inlineKeyboard, cancellationToken: cancellationToken);
+                await _botClient.SendTextMessageAsync(userChatId, questionText, replyMarkup: replyKeyboardMarkup, cancellationToken: cancellationToken);
 
                 _pendingJoinRequests[userId] = new ChatJoinRequestContext()
                     { JoinRequest = request, Question = selectedQuestion };
@@ -116,10 +103,13 @@ namespace stanbots.Services
                         _logger.LogInformation($"User:{userInReq.GetFullName()} is still in pending state");
 
                         await _botClient.DeclineChatJoinRequest(userChatId, userId, cancellationToken);
+                        
+                        // Remove the pending request
+                        _pendingJoinRequests.Remove(userId, out var removedItem);
 
-                        await _botClient.SendTextMessageAsync(userChatId,
-                            string.Format(JoinRequestsRefuseMessageTimeout, userInReq.GetFullName(),
-                                userInReq.LanguageCode, userInReq.IsBot, stillPendingRequest.Question));
+                        var msgToUser = string.Format(JoinRequestsRefuseMessageTimeout, userInReq.GetFullName(), userInReq.LanguageCode, userInReq.IsBot, stillPendingRequest.Question);
+
+                        _logger.LogInformation(msgToUser);
                     }
                 };
                 
@@ -128,9 +118,8 @@ namespace stanbots.Services
             else
             {
                 await _botClient.DeclineChatJoinRequest(userChatId, userId, cancellationToken);
-                await _botClient.SendTextMessageAsync(userChatId,
-                    string.Format(JoinRequestsRefuseToBotMessageTimeout, user.GetFullName(),
-                        user.Username, user.LanguageCode));
+                var msgToUser = string.Format(JoinRequestsRefuseToBotMessageTimeout, user.GetFullName(), user.Username, user.LanguageCode);
+                _logger.LogInformation(msgToUser);
             }
         }
 
@@ -150,15 +139,17 @@ namespace stanbots.Services
                 if (!string.IsNullOrWhiteSpace(response)
                     && response.Trim().Contains(quest.CorrectAnswer, System.StringComparison.OrdinalIgnoreCase))
                 {
-                    await _botClient.ApproveChatJoinRequest(chatId, userId, cancellationToken);
-                    await _botClient.SendTextMessageAsync(chatId, JoinRequestsWelcomeMessage);
+                     await _botClient.ApproveChatJoinRequest(chatId, userId, cancellationToken);
+                    _logger.LogInformation($"UserId:{userId} replied {response}, welcome to the chat! accepted!");
                 }
                 else
                 {
                     await _botClient.DeclineChatJoinRequest(chatId, userId, cancellationToken);
-                    await _botClient.SendTextMessageAsync(chatId,
-                        string.Format(JoinRequestsRefuseMessageWrongAnswer, req.From.GetFullName(),
-                            req.From.LanguageCode, req.From.IsBot, req.From.Username, quest.Question, response));
+
+                    var respMsg = string.Format(JoinRequestsRefuseMessageWrongAnswer, req.From.GetFullName(),
+                             req.From.LanguageCode, req.From.IsBot, req.From.Username, quest.Question, response);
+
+                    _logger.LogInformation(respMsg);
                 }
 
                 // Remove the pending request
