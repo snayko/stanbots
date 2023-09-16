@@ -48,6 +48,15 @@ namespace stanbots.Services
                 _ => UnknownUpdateHandlerAsync(update, cancellationToken)
             };
 
+            var properties = new Dictionary<string, string>
+            {
+                { "messageType", update.Type.ToString() },
+                { "message", JsonConvert.SerializeObject(update) }
+            };
+
+            _telemetryClient.TrackEvent(AzureEvents.MessageReceived, properties);
+
+
             await handler;
         }
 
