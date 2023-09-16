@@ -41,13 +41,6 @@ namespace stanbots.Services
 
         public async Task ProcessUpdateMessage(Update update, CancellationToken cancellationToken)
         {
-            var handler = update switch
-            {
-                { ChatJoinRequest: { } joinRequest } => BotOnJoinReceived(joinRequest, cancellationToken),
-                { Message: { } message } => BotOnReplyToMessageAboutJoinRequest(message, cancellationToken),
-                _ => UnknownUpdateHandlerAsync(update, cancellationToken)
-            };
-
             var properties = new Dictionary<string, string>
             {
                 { "messageType", update.Type.ToString() },
@@ -56,6 +49,12 @@ namespace stanbots.Services
 
             _telemetryClient.TrackEvent(AzureEvents.MessageReceived, properties);
 
+            var handler = update switch
+            {
+                { ChatJoinRequest: { } joinRequest } => BotOnJoinReceived(joinRequest, cancellationToken),
+                { Message: { } message } => BotOnReplyToMessageAboutJoinRequest(message, cancellationToken),
+                _ => UnknownUpdateHandlerAsync(update, cancellationToken)
+            };
 
             await handler;
         }
@@ -114,7 +113,7 @@ namespace stanbots.Services
 
                         _logger.LogInformation($"User:{userInReq.GetFullName()} is still in pending state");
 
-                        await _botClient.DeclineChatJoinRequest(userChatId, userId, cancellationToken);
+                        await _botClient.DeclineChatJoinRequest(chatId, userId, cancellationToken);
                         
                         // Remove the pending request
                         _pendingJoinRequests.Remove(userId, out var removedItem);
@@ -129,7 +128,7 @@ namespace stanbots.Services
             }
             else
             {
-                await _botClient.DeclineChatJoinRequest(userChatId, userId, cancellationToken);
+                await _botClient.DeclineChatJoinRequest(chatId, userId, cancellationToken);
                 var msgToUser = string.Format(JoinRequestsRefuseToBotMessageTimeout, user.GetFullName(), user.Username, user.LanguageCode);
                 _logger.LogInformation(msgToUser);
             }
@@ -146,7 +145,16 @@ namespace stanbots.Services
                 string response = message.Text;
                 var req = pendingRequest.JoinRequest;
                 var quest = pendingRequest.Question;
-                var chatId = req.UserChatId;
+                var chatId = req.Chat.Id;
+
+                var properties = new Dictionary<string, string>
+                {
+                    { "joinRequestFromUser", JsonConvert.SerializeObject(req)  },
+                    { "responseFromUser", JsonConvert.SerializeObject(message) }
+                };
+
+                _telemetryClient.TrackEvent(AzureEvents.ResponseFromUserReceived, properties);
+
                     
                 if (!string.IsNullOrWhiteSpace(response)
                     && response.Trim().Contains(quest.CorrectAnswer, System.StringComparison.OrdinalIgnoreCase))
@@ -166,6 +174,15 @@ namespace stanbots.Services
 
                 // Remove the pending request
                 _pendingJoinRequests.Remove(userId, out var removedItem);
+            }
+            else
+            {
+                var properties = new Dictionary<string, string>
+                {
+                    { "responseFromUser", JsonConvert.SerializeObject(message) }
+                };
+
+                _telemetryClient.TrackEvent(AzureEvents.NoUserFoundForIncomingMessage, properties);
             }
         }
 
