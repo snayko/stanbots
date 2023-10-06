@@ -12,6 +12,7 @@ using stanbots.Services;
 using System.Threading;
 using Microsoft.ApplicationInsights;
 using stanbots.Common;
+using stanbots.Models;
 
 namespace stanbots
 {
@@ -43,6 +44,39 @@ namespace stanbots
                 if (update != null)
                 {
                     await _updateService.ProcessUpdateMessage(update, cancellationToken);
+                }
+                
+                return new OkResult();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Exception: " + e.Message);
+                
+                var properties = new Dictionary<string, string>
+                {
+                    { "exceptionType", e.GetType().Name },
+                    { "exceptionMessage", e.Message }
+                };
+                _telemetryClient.TrackEvent(AzureEvents.RequestError, properties);
+            }
+
+            return new BadRequestResult();
+        }
+        
+        [FunctionName("SendLabResults")]
+        public async Task<IActionResult> SendLabResults(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest request, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var body = await request.ReadAsStringAsync();
+
+                _logger.LogInformation("BanderaWebHook received message {0}:", body);
+                
+                var labResult = JsonConvert.DeserializeObject<LabResultUpdate>(body);
+                if (labResult != null)
+                {
+                    await _updateService.ProcessLabResultMessage(labResult, cancellationToken);
                 }
                 
                 return new OkResult();

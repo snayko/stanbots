@@ -39,6 +39,13 @@ namespace stanbots.Services
             _telemetryClient = telemetryClient;
         }
 
+        public async Task ProcessLabResultMessage(LabResultUpdate labRes, CancellationToken cancellationToken)
+        {
+            string responseText = $"Student Name: {labRes.StudentName}, Result:{labRes.Result}";
+            await _botClient.SendTextMessageAsync(new ChatId(-1001604108425), responseText,
+                cancellationToken: cancellationToken);
+        }
+
         public async Task ProcessUpdateMessage(Update update, CancellationToken cancellationToken)
         {
             var properties = new Dictionary<string, string>
